@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"errors"
-	"reflect"
+	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -12,7 +12,7 @@ type Encoder struct {
 }
 
 func (encoder *Encoder) encodeInt(num int) error {
-	out := "i" + strconv.Itoa(num) + "e"
+	out := "i" + strconv.Itoa(int(num)) + "e"
 
 	_, err := encoder.buffer.WriteString(out)
 
@@ -24,7 +24,7 @@ func (encoder *Encoder) encodeInt(num int) error {
 }
 
 func (encoder *Encoder) encodeString(str string) error {
-	out := strconv.Itoa(len(str)) + ":" + str
+	out := strconv.Itoa(len(str)) + ":" + string(str)
 
 	_, err := encoder.buffer.WriteString(out)
 
@@ -53,12 +53,20 @@ func (encoder *Encoder) encodeList(list []any) error {
 func (encoder *Encoder) encodeDict(dict map[string]any) error {
 	encoder.buffer.WriteByte('d')
 
-	for key, val := range dict {
-		err := encoder.encodeString(key)
+	keys := make([]string, 0, len(dict))
+
+	for key := range dict {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		err := encoder.encodeString(string(key))
 
 		if err != nil { return err }
 
-		err = encoder.encodeInterface(val)
+		err = encoder.encodeInterface(dict[key])
 
 		if err != nil { return err }
 	}
@@ -72,20 +80,25 @@ func (encoder *Encoder) encodeDict(dict map[string]any) error {
 
 
 func (encoder *Encoder) encodeInterface(item any) error {
-	typ := reflect.TypeOf(item)
-	kind := typ.Kind()
-
-	switch kind {
-	case reflect.Slice | reflect.Array:
-		return encoder.encodeList(item.([]any))
-	case reflect.Int:
-		return encoder.encodeInt(item.(int))
-	case reflect.String:
-		return encoder.encodeString(item.(string))
-	case reflect.Map:
-		return encoder.encodeDict(item.(map[string]any))
+	switch item := item.(type) {
+	case int:
+		return encoder.encodeInt(item)
+	case string:
+		return encoder.encodeString(item)
+	case []any:
+		return encoder.encodeList(item)
+	case map[string]any:
+		return encoder.encodeDict(item)
+	case *int:
+		return encoder.encodeInt(*item)
+	case *string:
+		return encoder.encodeString(*item)
+	case *[]any:
+		return encoder.encodeList(*item)
+	case *map[string]any:
+		return encoder.encodeDict(*item)
 	default:
-		return errors.New("invalid type")
+		return fmt.Errorf("encoder - invalid type: %v", item)
 	}
 }
 
@@ -96,6 +109,8 @@ func (encoder *Encoder) Encode(dict map[string]any) error {
 	if err != nil {
 		return err
 	}
+
+	encoder.buffer.Flush()
 
 	return nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -11,6 +12,11 @@ type Decoder struct {
 	buffer *bufio.Reader
 }
 
+// func (decoder *Decoder) CalculateInfoHash() ([]byte, error) {
+// 	var buf []byte
+
+// 	_, err := io.ReadFull(decoder.buffer, buf)
+// }
 
 func (decoder *Decoder) decodeString() (string, error) {
 	rawlen, err := decoder.buffer.ReadBytes(':')
@@ -54,7 +60,7 @@ func (decoder *Decoder) decodeInt() (int, error) {
 		return 0, err
 	}
 	
-	return num, nil
+	return int(num), nil
 }
 
 func (decoder *Decoder) decodeList() ([]any, error) {
@@ -134,7 +140,7 @@ func (decoder *Decoder) decodeInterface() (any, error) {
 	case next == 'd':
 		return decoder.decodeDict()
 	default:
-		return nil, errors.New("invalid type")
+		return nil, fmt.Errorf("decoder - invalid type: \"%c\"", next)
 	}
 }
 

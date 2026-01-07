@@ -2,40 +2,69 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 )
 
+func PrintJSON(obj interface{}) {
+	bytes, err := json.MarshalIndent(obj, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(bytes))
+}
+
 func main() {
-	file, err := os.Open("test_data/ubuntu.metadata")
+	infile, err := os.Open("test_data/ubuntu.torrent")
 
 	if err != nil {
 		panic(err)
 	}
 
-	defer file.Close()
+	defer infile.Close()
 
-	reader := bufio.NewReader(file)
-	writer := bufio.NewWriter(os.Stdout)
+	reader := bufio.NewReader(infile)
 
 	decoder := Decoder{reader}
-	encoder := Encoder{writer}
-	
 	
 	output, err := decoder.Decode()
 
+	// PrintJSON(output)
+
+	metainfo, err := BuildMetainfo(output)
+
+
+
+	// fmt.Println(metainfo)
+
+	req, err := BuildTrackerRequest(metainfo, 6881, 0, 0, 0)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(output)
+	fmt.Println(req)
 
-	err = encoder.Encode(output)
+	params := fmt.Sprintf(
+		"info_hash=%s&peer_id=%s&port=6881&uploaded=0&downloaded=0&left=0&compact=1",
+		escapeBytes(req.Info_hash),
+		escapeBytes(req.Peer_id),
+	)
+
+	url := metainfo.Announce + "?" + params
+
+	response, err := http.Get(url)
+
+	body, _ := io.ReadAll(response.Body)
+	fmt.Printf("%q\n", body)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	encoder.buffer.Flush()
+	fmt.Println(response)
 }
